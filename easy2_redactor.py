@@ -1,9 +1,7 @@
 import customtkinter as ctk
 import json
 import os
-from tkinter import messagebox
 import re
-
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -17,6 +15,7 @@ class Redactor(ctk.CTk):
         self.resizable(width=False, height=False)
 
         self.id = 1
+        self.current_question = 1
         self.answer_checkboxes = []
         self.answer_entries = []
         self.questions = []
@@ -45,7 +44,7 @@ class Redactor(ctk.CTk):
         self.create_answers()
 
     def add_tabs(self):
-        button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda: self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
+        button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
         button.pack(side='left', padx=5, pady=5)
 
     def on_scroll(self, *args):
@@ -93,7 +92,7 @@ class Redactor(ctk.CTk):
                 self.answer_entries.append(answer_entry)
             
 
-    def create_question_widgets(self):
+    def create_question_widgets(self, change_flag=False):
         self.label_question = ctk.CTkLabel(master=self.content_frame, text='Введите вопрос', font=('Arial', 20, 'bold'))
         self.label_question.pack(side='top', pady=10)
 
@@ -104,7 +103,13 @@ class Redactor(ctk.CTk):
         self.label_question.pack(side='top', pady=40)
 
         self.question_save_button = ctk.CTkButton(master=self.content_frame, text='Записать вопрос', command=self.record_question)
-        self.question_save_button.place(relx=0.35, rely=0.8)
+        self.update_button = ctk.CTkButton(master=self.content_frame, text='Сохранить изменения', command=lambda:self.update_question(self.current_question))
+
+        if not change_flag:
+            self.question_save_button.place(relx=0.35, rely=0.8)
+        else:
+            self.update_button.place(relx=0.35, rely=0.8)
+            pass
 
         self.record_test_button = ctk.CTkButton(master=self.content_frame, text='Сохранить тест', command=self.save_test)
         self.record_test_button.place(relx=0.55, rely=0.8)
@@ -116,7 +121,7 @@ class Redactor(ctk.CTk):
         self.dialog = ctk.CTkInputDialog(text='Введите кол-во ответов для текущего вопроса (не больше 12)', title='Выберите кол-во ответов')
         n = int(self.dialog.get_input())
 
-        while(n>12):
+        while(n > 12):
             self.dialog = ctk.CTkInputDialog(text='Введите кол-во ответов для текущего вопроса (не больше 12)', title='Выберите кол-во ответов')
             n = int(self.dialog.get_input())
 
@@ -132,12 +137,17 @@ class Redactor(ctk.CTk):
     def update_content(self, tab_index):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
-        self.create_question_widgets()
+        
+        self.current_question = tab_index
 
         try:
+            self.questions[tab_index-1]['answers']
+            self.create_question_widgets(True)
             self.create_answers(len(self.questions[tab_index-1]['answers']), tab_index-1)
             self.textbox_question.insert('0.0', f'{self.questions[tab_index-1]['question']}')
+
         except IndexError:
+            self.create_question_widgets(False)
             self.create_answers()
 
     def record_question(self):
@@ -158,6 +168,25 @@ class Redactor(ctk.CTk):
         })
         self.id += 1
         self.add_tabs()
+        self.question_save_button.destroy()
+        self.update_button.place(relx=0.35, rely=0.8)
+
+    def update_question(self, index):
+        question_text = self.textbox_question.get('0.0', 'end')
+        answers = []
+        correct_answers = []
+        
+        for i, entry in enumerate(self.answer_entries):
+            answers.append(entry.get())
+            if self.answer_checkboxes[i].get():
+                correct_answers.append(entry.get())
+        
+        self.questions[index-1]= {
+            "question": question_text,
+            "answers": answers,
+            "correct": correct_answers,
+            "id": index
+        }
         
     def save_test(self):
         if not self.questions:
