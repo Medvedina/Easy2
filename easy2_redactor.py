@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import json
-import os
 import re
+from tkinter import filedialog, messagebox
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -43,9 +43,14 @@ class Redactor(ctk.CTk):
         self.create_question_widgets()
         self.create_answers()
 
-    def add_tabs(self):
-        button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
-        button.pack(side='left', padx=5, pady=5)
+    def add_tabs(self, n=None):
+        if n:
+            for i in range(n-1):
+                button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {i+2}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
+                button.pack(side='left', padx=5, pady=5)
+        else:
+            button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
+            button.pack(side='left', padx=5, pady=5)
 
     def on_scroll(self, *args):
         self.canvas.xview(*args)
@@ -106,9 +111,9 @@ class Redactor(ctk.CTk):
         self.update_button = ctk.CTkButton(master=self.content_frame, text='Сохранить изменения', command=lambda:self.update_question(self.current_question))
 
         if not change_flag:
-            self.question_save_button.place(relx=0.35, rely=0.8)
+            self.question_save_button.place(relx=0.3, rely=0.8)
         else:
-            self.update_button.place(relx=0.35, rely=0.8)
+            self.update_button.place(relx=0.3, rely=0.8)
             pass
 
         self.record_test_button = ctk.CTkButton(master=self.content_frame, text='Сохранить тест', command=self.save_test)
@@ -116,7 +121,10 @@ class Redactor(ctk.CTk):
 
         self.number_button = ctk.CTkButton(master=self.content_frame, text=f'Кол-во ответов: 4', command=self.change_answer_count)
         self.number_button.place(relx=0.03, rely=0.4)
-    
+
+        self.open_button = ctk.CTkButton(master=self.content_frame, text='Открыть тест', command=self.open_file)
+        self.open_button.place(relx=0.03, rely=0.45)
+
     def change_answer_count(self):
         self.dialog = ctk.CTkInputDialog(text='Введите кол-во ответов для текущего вопроса (не больше 12)', title='Выберите кол-во ответов')
         n = int(self.dialog.get_input())
@@ -169,7 +177,9 @@ class Redactor(ctk.CTk):
         self.id += 1
         self.add_tabs()
         self.question_save_button.destroy()
-        self.update_button.place(relx=0.35, rely=0.8)
+        self.update_button.place(relx=0.3, rely=0.8)
+        self.label_success_record = ctk.CTkLabel(master=self.content_frame, text='Вопрос записан в память', font=('Arial', 12, 'bold'), text_color='green')
+        self.label_success_record.place(relx=0.3, rely=0.85)
 
     def update_question(self, index):
         question_text = self.textbox_question.get('0.0', 'end')
@@ -187,15 +197,36 @@ class Redactor(ctk.CTk):
             "correct": correct_answers,
             "id": index
         }
-        
+        self.label_success_record.destroy()
+        self.label_success_edit = ctk.CTkLabel(master=self.content_frame, text='Изменения сохранены', font=('Arial', 12, 'bold'), text_color='green')
+        self.label_success_edit.place(relx=0.3, rely=0.85)
+
     def save_test(self):
         if not self.questions:
             return
 
-        save_path = os.path.join('created', 'test.json')
+        save_path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[("JSON files", "*.json")])
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(self.questions, f, ensure_ascii=False, indent=4)
-
+        messagebox.showinfo(title='Сохранение', message=f'Файл сохранён как {save_path}')
+    
+    def open_file(self):
+        file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+        with open(file, 'r', encoding='utf-8') as f:
+            self.id = 1
+            self.current_question = 1
+            self.answer_checkboxes = []
+            self.answer_entries = []
+            for widget in self.tab_frame.winfo_children():
+                widget.destroy()
+            self.add_tabs()
+            data = json.load(f)
+            self.add_tabs(len(data))
+            self.questions = data
+            self.id = len(data) + 1
+        self.add_tabs()
+        self.update_content(1)
+        messagebox.showinfo(title='Загрузка', message=f'Успешно загружен файл {file}')
 
 if __name__ == '__main__':
     app = Redactor()
