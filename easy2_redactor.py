@@ -2,6 +2,7 @@ import customtkinter as ctk
 import json
 import re
 from tkinter import filedialog, messagebox
+from werkzeug.security import generate_password_hash
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -21,7 +22,7 @@ class Redactor(ctk.CTk):
         self.questions = []
 
         self.canvas = ctk.CTkCanvas(self, height=32)
-        self.canvas.config(bg='#242424', highlightbackground='#242424')
+        self.canvas.config(bg='#2b2b2b', highlightbackground='#2b2b2b')
         self.canvas.pack(side='top', fill='x')
 
         self.tab_frame = ctk.CTkFrame(self.canvas)
@@ -96,7 +97,6 @@ class Redactor(ctk.CTk):
                 self.answer_checkboxes.append(answer_checkbox)
                 self.answer_entries.append(answer_entry)
             
-
     def create_question_widgets(self, change_flag=False):
         self.label_question = ctk.CTkLabel(master=self.content_frame, text='Введите вопрос', font=('Arial', 20, 'bold'))
         self.label_question.pack(side='top', pady=10)
@@ -109,12 +109,13 @@ class Redactor(ctk.CTk):
 
         self.question_save_button = ctk.CTkButton(master=self.content_frame, text='Записать вопрос', command=self.record_question)
         self.update_button = ctk.CTkButton(master=self.content_frame, text='Сохранить изменения', command=lambda:self.update_question(self.current_question))
+        self.delete_button = ctk.CTkButton(master=self.content_frame, text='Удалить вопрос', command=self.delete_answer)
 
         if not change_flag:
             self.question_save_button.place(relx=0.3, rely=0.8)
         else:
             self.update_button.place(relx=0.3, rely=0.8)
-            pass
+            self.delete_button.place(relx=0.03, rely=0.5)
 
         self.record_test_button = ctk.CTkButton(master=self.content_frame, text='Сохранить тест', command=self.save_test)
         self.record_test_button.place(relx=0.55, rely=0.8)
@@ -178,6 +179,7 @@ class Redactor(ctk.CTk):
         self.add_tabs()
         self.question_save_button.destroy()
         self.update_button.place(relx=0.3, rely=0.8)
+        self.delete_button.place(relx=0.03, rely=0.5)
         self.label_success_record = ctk.CTkLabel(master=self.content_frame, text='Вопрос записан в память', font=('Arial', 12, 'bold'), text_color='green')
         self.label_success_record.place(relx=0.3, rely=0.85)
 
@@ -202,31 +204,96 @@ class Redactor(ctk.CTk):
         self.label_success_edit.place(relx=0.3, rely=0.85)
 
     def save_test(self):
-        if not self.questions:
-            return
+        try:
+            if not self.questions:
+                return
 
-        save_path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[("JSON files", "*.json")])
-        with open(save_path, 'w', encoding='utf-8') as f:
-            json.dump(self.questions, f, ensure_ascii=False, indent=4)
-        messagebox.showinfo(title='Сохранение', message=f'Файл сохранён как {save_path}')
+            save_path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[("JSON files", "*.json")])
+            if not save_path:
+                raise RuntimeError
+            
+            self.time_dialog = ctk.CTkInputDialog(title='Сохранение', text='Введите в минутах время на прохождение теста')
+            time = self.time_dialog.get_input()
+
+            if time.isnumeric():
+                self.questions[-1].update({'time': f'{int(time)*60}'})
+            else:
+                messagebox.showerror(title='Ошибка сохранения', message='Введено некорректное время')
+                raise RuntimeError
+            
+            self.pass_dialog = ctk.CTkInputDialog(title='Сохранение', text='Введите пароль для защиты теста')
+            word = self.pass_dialog.get_input()
+            if word == '':
+                messagebox.showerror(title='Ошибка сохранения', message='Пароль не может быть пустым')
+                raise RuntimeError
+            elif word is not None:
+                self.conf_dialog = ctk.CTkInputDialog(title='Сохранение', text='Подтвердите пароль')
+                word_confirm = self.conf_dialog.get_input()
+            else:
+                raise RuntimeError
+            if word != word_confirm:
+                messagebox.showerror(title='Ошибка сохранения', message='Пароли не совпадают')
+                raise RuntimeError
+
+            password = generate_password_hash(word)
+            save_keys = {'password': f'{password}'}
+            self.questions[-1].update(save_keys)
+            with open(save_path, 'w', encoding='utf-8') as f:
+                json.dump(self.questions, f, ensure_ascii=False, indent=4)
+            messagebox.showinfo(title='Сохранение', message=f'Файл сохранён как {save_path}')
+        except RuntimeError:
+            pass
     
     def open_file(self):
-        file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-        with open(file, 'r', encoding='utf-8') as f:
-            self.id = 1
-            self.current_question = 1
-            self.answer_checkboxes = []
-            self.answer_entries = []
-            for widget in self.tab_frame.winfo_children():
-                widget.destroy()
+        try:
+            file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+            if not file:
+                raise RuntimeError
+            with open(file, 'r', encoding='utf-8') as f:
+                self.id = 1
+                self.current_question = 1
+                self.answer_checkboxes = []
+                self.answer_entries = []
+                for widget in self.tab_frame.winfo_children():
+                    widget.destroy()
+                self.add_tabs()
+                data = json.load(f)
+
+                for question in data:
+                    question['question']
+                    question['answers']
+                    question['correct']
+                    question['id']
+
+                self.add_tabs(len(data))
+                self.questions = data
+                self.id = len(data) + 1
             self.add_tabs()
-            data = json.load(f)
-            self.add_tabs(len(data))
-            self.questions = data
-            self.id = len(data) + 1
+            self.update_content(1)
+            messagebox.showinfo(title='Загрузка', message=f'Успешно загружен файл {file}')
+        except KeyError as e:
+            messagebox.showerror(title='Файл повреждён', message=f'Не найден ключ: {e}')
+        except RuntimeError:
+            pass
+        except Exception as e:
+            messagebox.showerror(title='Файл повреждён', message=f'{e}')
+    
+    def delete_answer(self):
+        for widget in self.tab_frame.winfo_children():
+            widget.destroy()
+        self.id = 1
+        for question in self.questions:
+            if question['id'] == self.current_question:
+                self.questions.pop(self.current_question - 1)
+                new_id = 1
+                for changed_question in self.questions:
+                    changed_question['id'] = new_id
+                    new_id += 1
+                break
         self.add_tabs()
-        self.update_content(1)
-        messagebox.showinfo(title='Загрузка', message=f'Успешно загружен файл {file}')
+        self.id = len(self.questions) + 1
+        self.add_tabs(self.id)
+        self.update_content()
 
 if __name__ == '__main__':
     app = Redactor()
