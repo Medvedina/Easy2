@@ -6,6 +6,7 @@ import threading
 import time
 from PIL import Image
 import pyautogui
+import sys
 from werkzeug.security import check_password_hash
 
 class TestPlayer(ctk.CTk):
@@ -50,7 +51,7 @@ class TestPlayer(ctk.CTk):
         self.load_button = ctk.CTkButton(self, text='Загрузить тест', command=self.load_test)
         self.load_button.place(relx=0.45, rely=0.5)
 
-        self.exit_button = ctk.CTkButton(self, text='Выйти', command=exit)
+        self.exit_button = ctk.CTkButton(self, text='Выйти', command=sys.exit)
         self.exit_button.place(relx=0.45, rely=0.55)
 
         self.timer_label = ctk.CTkLabel(master=self, text='00:00:00', font=('Arial', 36, 'bold'), fg_color='#2b2b2b')
