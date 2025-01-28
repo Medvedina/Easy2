@@ -76,7 +76,7 @@ class Redactor(ctk.CTk):
 
                     answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
                     answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
-                    answer_entry.insert(ctk.END, f'{self.questions[index]['answers'][i]}')
+                    answer_entry.insert(ctk.END, str(self.questions[index]['answers'][i]))
                     
                     if self.questions[index]['answers'][i] in self.questions[index]['correct']:
                         answer_checkbox.select()
@@ -153,7 +153,7 @@ class Redactor(ctk.CTk):
             self.questions[tab_index-1]['answers']
             self.create_question_widgets(True)
             self.create_answers(len(self.questions[tab_index-1]['answers']), tab_index-1)
-            self.textbox_question.insert('0.0', f'{self.questions[tab_index-1]['question']}')
+            self.textbox_question.insert('0.0', str(self.questions[tab_index-1]['question']))
 
         except IndexError:
             self.create_question_widgets(False)
