@@ -47,7 +47,7 @@ class Redactor(ctk.CTk):
     def add_tabs(self, n=None):
         if n:
             for i in range(n-1):
-                button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {i+2}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
+                button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {i+2}", command=lambda i=i:self.update_content(i+2))
                 button.pack(side='left', padx=5, pady=5)
         else:
             button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
@@ -146,7 +146,7 @@ class Redactor(ctk.CTk):
     def update_content(self, tab_index):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
-        
+        print(tab_index)
         self.current_question = tab_index
 
         try:
@@ -293,7 +293,7 @@ class Redactor(ctk.CTk):
         self.add_tabs()
         self.id = len(self.questions) + 1
         self.add_tabs(self.id)
-        self.update_content()
+        self.update_content(self.id)
 
 if __name__ == '__main__':
     app = Redactor()
