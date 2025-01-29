@@ -1,4 +1,5 @@
-custom_tkinter
+customtkinter
 pyautogui
 pillow
 werkzeug
+cryptography

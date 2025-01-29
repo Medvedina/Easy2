@@ -8,6 +8,12 @@ from PIL import Image
 import pyautogui
 import sys
 from werkzeug.security import check_password_hash
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+import base64
+import hashlib
+import ast
 
 class TestPlayer(ctk.CTk):
     def __init__(self):
@@ -47,7 +53,7 @@ class TestPlayer(ctk.CTk):
 
         self.content_frame = ctk.CTkFrame(self)
         self.content_frame.pack(side='top', fill='both', expand=True)
-
+        
         self.load_button = ctk.CTkButton(self, text='Загрузить тест', command=self.load_test)
         self.load_button.place(relx=0.45, rely=0.5)
 
@@ -116,6 +122,30 @@ class TestPlayer(ctk.CTk):
 
     def on_frame_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+
+    def generate_key(self, key):
+        key_bytes = key.encode('utf-8')
+        return hashlib.sha256(key_bytes).digest()
+    
+    def decryption_func(self, key_str, encrypted_data):
+        decrypted_dict = {}
+        attribute_list = ['question', 'answers', 'correct']
+        key = self.generate_key(key_str)
+        iv = key[:16]
+        key = key[16:]
+
+        for attribute in attribute_list:
+            encrypted_bytes = base64.b64decode(encrypted_data[attribute])
+            aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).decryptor()
+            unpadded_data = aes_cipher.update(encrypted_bytes) + aes_cipher.finalize()
+            unpadder = padding.PKCS7(128).unpadder()
+            unpadded_data = unpadder.update(unpadded_data) + unpadder.finalize()
+            if attribute == 'answers' or attribute == 'correct':
+                decrypted_dict[attribute] = ast.literal_eval(unpadded_data.decode('utf-8'))
+            else:
+                decrypted_dict[attribute] = unpadded_data.decode('utf-8')
+    
+        return decrypted_dict
     
     def load_test(self):
         try:
@@ -140,6 +170,11 @@ class TestPlayer(ctk.CTk):
                 password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
 
                 if check_password_hash(str(key), str(password)):
+                    counter = 0
+                    for question in self.questions:
+                        update = self.decryption_func(str(password), question)
+                        self.questions[counter].update(update)
+                        counter += 1
                     self.create_questions(len(self.questions))
                     self.load_button.destroy()
                     self.exit_button.place_forget()

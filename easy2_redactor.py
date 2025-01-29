@@ -2,7 +2,13 @@ import customtkinter as ctk
 import json
 import re
 from tkinter import filedialog, messagebox
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+import base64
+import hashlib
+import ast
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -44,6 +50,45 @@ class Redactor(ctk.CTk):
         self.create_question_widgets()
         self.create_answers()
 
+    def generate_key(self, key):
+        key_bytes = key.encode('utf-8')
+        return hashlib.sha256(key_bytes).digest()
+    
+    def encryption_func(self, key_str, data):
+        encrypted_dict = {}
+        attribute_list = ['question', 'answers', 'correct']
+        key = self.generate_key(key_str)
+        iv = key[:16]
+        key = key[16:]
+        for i in range(3):
+            aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).encryptor()
+            data_bytes = str(data[attribute_list[i]]).encode('utf-8')
+            padder = padding.PKCS7(128).padder()
+            padded_data = padder.update(data_bytes) + padder.finalize()
+            encrypted = aes_cipher.update(padded_data) + aes_cipher.finalize()
+            encrypted_dict.update({attribute_list[i]: base64.b64encode(encrypted).decode('utf-8')})
+        return encrypted_dict
+    
+    def decryption_func(self, key_str, encrypted_data):
+        decrypted_dict = {}
+        attribute_list = ['question', 'answers', 'correct']
+        key = self.generate_key(key_str)
+        iv = key[:16]
+        key = key[16:]
+
+        for attribute in attribute_list:
+            encrypted_bytes = base64.b64decode(encrypted_data[attribute])
+            aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).decryptor()
+            unpadded_data = aes_cipher.update(encrypted_bytes) + aes_cipher.finalize()
+            unpadder = padding.PKCS7(128).unpadder()
+            unpadded_data = unpadder.update(unpadded_data) + unpadder.finalize()
+            if attribute == 'answers' or attribute == 'correct':
+                decrypted_dict[attribute] = ast.literal_eval(unpadded_data.decode('utf-8'))
+            else:
+                decrypted_dict[attribute] = unpadded_data.decode('utf-8')
+    
+        return decrypted_dict
+    
     def add_tabs(self, n=None):
         if n:
             for i in range(n-1):
@@ -199,7 +244,6 @@ class Redactor(ctk.CTk):
             "correct": correct_answers,
             "id": index
         }
-        self.label_success_record.destroy()
         self.label_success_edit = ctk.CTkLabel(master=self.content_frame, text='Изменения сохранены', font=('Arial', 12, 'bold'), text_color='green')
         self.label_success_edit.place(relx=0.3, rely=0.85)
 
@@ -216,8 +260,9 @@ class Redactor(ctk.CTk):
             time = self.time_dialog.get_input()
 
             if time.isnumeric():
-                self.questions[-1].update({'time': f'{int(time)*60}'})
+                self.time_correct_flag = True
             else:
+                self.time_correct_flag = False
                 messagebox.showerror(title='Ошибка сохранения', message='Введено некорректное время')
                 raise RuntimeError
             
@@ -237,7 +282,17 @@ class Redactor(ctk.CTk):
 
             password = generate_password_hash(word)
             save_keys = {'password': f'{password}'}
+            counter = 0
+            for question in self.questions:
+                update = self.encryption_func(word, question)
+                self.questions[counter].update(update)
+                counter += 1
+
             self.questions[-1].update(save_keys)
+
+            if self.time_correct_flag:
+                self.questions[-1].update({'time': f'{int(time)*60}'})
+
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(self.questions, f, ensure_ascii=False, indent=4)
             messagebox.showinfo(title='Сохранение', message=f'Файл сохранён как {save_path}')
@@ -267,7 +322,19 @@ class Redactor(ctk.CTk):
 
                 self.add_tabs(len(data))
                 self.questions = data
-                self.id = len(data) + 1
+                key = self.questions[-1]['password']
+                password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
+
+                if check_password_hash(str(key), str(password)):
+                    counter = 0
+                    for question in self.questions:
+                            update = self.decryption_func(str(password), question)
+                            self.questions[counter].update(update)
+                            counter += 1
+                else:
+                    messagebox.showerror(title='Ошибка авторизации', message='Неверный пароль')
+                    raise RuntimeError
+            self.id = len(data) + 1
             self.add_tabs()
             self.update_content(1)
             messagebox.showinfo(title='Загрузка', message=f'Успешно загружен файл {file}')
