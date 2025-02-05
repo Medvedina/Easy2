@@ -88,6 +88,18 @@ class Redactor(ctk.CTk):
                 decrypted_dict[attribute] = unpadded_data.decode('utf-8')
     
         return decrypted_dict
+    def encrypt_time(self, key, data):
+        key = self.generate_key(key)
+        iv = key[:16]
+        key = key[16:]
+        aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).encryptor()
+
+        data_bytes = data.encode('utf-8')
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(data_bytes) + padder.finalize()
+        encrypted = aes_cipher.update(padded_data) + aes_cipher.finalize()
+
+        return base64.b64encode(encrypted).decode('utf-8')
     
     def add_tabs(self, n=None):
         if n:
@@ -191,7 +203,6 @@ class Redactor(ctk.CTk):
     def update_content(self, tab_index):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
-        print(tab_index)
         self.current_question = tab_index
 
         try:
@@ -291,7 +302,7 @@ class Redactor(ctk.CTk):
             self.questions[-1].update(save_keys)
 
             if self.time_correct_flag:
-                self.questions[-1].update({'time': f'{int(time)*60}'})
+                self.questions[-1].update({'time': self.encrypt_time(word, str(int(time)*60))})
 
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(self.questions, f, ensure_ascii=False, indent=4)

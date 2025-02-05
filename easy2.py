@@ -14,6 +14,8 @@ from cryptography.hazmat.backends import default_backend
 import base64
 import hashlib
 import ast
+import datetime
+import os
 
 class TestPlayer(ctk.CTk):
     def __init__(self):
@@ -61,13 +63,20 @@ class TestPlayer(ctk.CTk):
         self.exit_button.place(relx=0.45, rely=0.55)
 
         self.timer_label = ctk.CTkLabel(master=self, text='00:00:00', font=('Arial', 36, 'bold'), fg_color='#2b2b2b')
-        self.timer_label.place(relx=0.8, rely=0.9)
+        self.timer_label.place(relx=0.1, rely=0.9)
+
+        self.fio = ctk.CTkInputDialog(title='Easy2', text='Фамилия И.О.').get_input()
+        
+        if not self.fio:
+            sys.exit()
 
         self.bad_guy_check = threading.Thread(target=self.bad_guy_alert)
         self.timer = threading.Thread(target=self.timer_function)
 
+        messagebox.showwarning(title='Внимание', message=('Программа отслеживает любую попытку свернуть тест или открыть что-то в фоне. ' 
+                                                          'Будьте осторожны! Даже случайное нажатие на "Пуск"' 
+                                                          'будет расценено как попытка списать.'))
     def timer_function(self):
-        self.time = int(self.questions[-1]['time'])
         self.timer_label.configure(text=time.strftime('%H:%M:%S', time.gmtime(self.time)))
 
         while(True):
@@ -108,12 +117,19 @@ class TestPlayer(ctk.CTk):
                     for widget in self.content_frame.winfo_children():
                         widget.destroy()
 
-                    self.passed_label = ctk.CTkLabel(master=self.content_frame, text=f'ПОЙМАН НА ОШИБКЕ', font=('Arial', 72, 'bold'), text_color='red')
+                    ctk.set_appearance_mode('light')
+                    self.timer_label.configure(fg_color='#dbdbdb')
+                    self.canvas.config(bg='#dbdbdb', highlightbackground='#dbdbdb')
+                    self.passed_fio = ctk.CTkLabel(master=self.content_frame, text=self.fio, font=('Arial', 72, 'bold'), text_color='red')
+                    self.passed_fio.pack(side='top', pady=100)
+                    self.passed_label = ctk.CTkLabel(master=self.content_frame, text='ПОЙМАН НА ОШИБКЕ', font=('Arial', 72, 'bold'), text_color='red')
                     self.passed_label.pack(side='top', pady=100)
+                    self.content_frame.configure(fg_color='#dbdbdb', border_color='dbdbdb')
+                    self.variant_label.configure(bg_color='#dbdbdb')
                     self.passed_flag = True
-
+    
         self.exit_button.configure(state=ctk.DISABLED)
-        self.exit_button.place(relx=0.45, rely=0.8)
+        self.exit_button.place(relx=0.46, rely=0.8)
         time.sleep(3)
         self.exit_button.configure(state=ctk.ACTIVE)
 
@@ -147,13 +163,27 @@ class TestPlayer(ctk.CTk):
     
         return decrypted_dict
     
+    def decrypt_time(self, key_str, encrypted_data):
+        key = self.generate_key(key_str)
+        iv = key[:16]  # Initialization vector (IV)
+        key = key[16:]  # Use next 32 bytes for AES-256
+        aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).decryptor()
+
+        encrypted_bytes = base64.b64decode(encrypted_data.encode('utf-8'))
+        decrypted = aes_cipher.update(encrypted_bytes) + aes_cipher.finalize()
+
+        unpadder = padding.PKCS7(128).unpadder()
+        unpadded_data = unpadder.update(decrypted) + unpadder.finalize()
+
+        return unpadded_data.decode('utf-8')
+    
     def load_test(self):
         try:
             file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-
             if not file:
                 raise RuntimeError
-            
+            self.variant_label = ctk.CTkLabel(master=self, text=os.path.basename(file), font=('Arial', 42, 'bold'), bg_color='#2b2b2b')
+            self.variant_label.place(relx=0.85, rely=0.9)
             with open(file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
@@ -162,8 +192,6 @@ class TestPlayer(ctk.CTk):
                     question['answers']
                     question['correct']
                     question['id']
-                if not data[-1]['time'].isnumeric():
-                    raise KeyError
                 
                 self.questions = data
                 key = self.questions[-1]['password']
@@ -175,6 +203,12 @@ class TestPlayer(ctk.CTk):
                         update = self.decryption_func(str(password), question)
                         self.questions[counter].update(update)
                         counter += 1
+
+                    self.time = int(self.decrypt_time(key_str=password, encrypted_data=self.questions[-1]['time']))
+                    
+                    if not str(self.time).isnumeric():
+                        raise KeyError
+                    
                     self.create_questions(len(self.questions))
                     self.load_button.destroy()
                     self.exit_button.place_forget()
@@ -255,10 +289,18 @@ class TestPlayer(ctk.CTk):
                     widget.destroy()
 
                 self.passed_flag = True
-                self.passed_label = ctk.CTkLabel(master=self.content_frame, text=f'Результат: {self.score} из {len(self.questions)}', font=('Arial', 72, 'bold'))
+                self.passed_fio = ctk.CTkLabel(master=self.content_frame, text=self.fio, font=('Arial', 52, 'bold'))
+                self.passed_fio.pack(side='top', pady=100)
+
+                self.passed_label = ctk.CTkLabel(master=self.content_frame, text=f'Результат: {self.score} из {len(self.questions)}', font=('Arial', 82, 'bold'))
                 self.passed_label.pack(side='top', pady=100)
+
+                self.passed_time = ctk.CTkLabel(master=self.content_frame, text=f'{datetime.datetime.now().strftime('%H:%M | %d.%m.%Y')}', font=('Arial', 52, 'bold'))
+                self.passed_time.pack(side='top', pady=100)
             else:
                 self.tab_buttons[self.current_question - 1].configure(state=ctk.DISABLED)
+                self.answered_label = ctk.CTkLabel(master=self.content_frame, text='Ответ записан', font=('Arial', 32, 'bold'), text_color='green')
+                self.answered_label.place(relx=0.7, rely=0.85)
                 self.button_answer.configure(state=ctk.DISABLED)
                 for checkbox in self.checkboxes:
                     checkbox.configure(state=ctk.DISABLED)
