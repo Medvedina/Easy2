@@ -16,6 +16,19 @@ import hashlib
 import ast
 import datetime
 import os
+import ctypes
+
+def get_scale_factor():
+    try:
+        hdc = ctypes.windll.user32.GetDC(0)
+        dpi_x = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
+        scale_factor = dpi_x / 96
+        ctypes.windll.user32.ReleaseDC(0, hdc)
+        print(scale_factor)
+        return scale_factor
+
+    except Exception as e:
+        raise e
 
 class TestPlayer(ctk.CTk):
     def __init__(self):
@@ -26,6 +39,9 @@ class TestPlayer(ctk.CTk):
         self.title('Easy2')
         self.state('zoomed')
         self.overrideredirect(True)
+        self.scale_factor = get_scale_factor()
+        ctk.set_window_scaling(1 / self.scale_factor)
+        ctk.set_window_scaling(1 / self.scale_factor)
         self.geometry(f"{self.width}x{self.height}")
         self.resizable(width=False, height=False)
 
