@@ -10,11 +10,13 @@ import base64
 import hashlib
 import ast
 
+#Типы: Checkboxes, String, PictureCheckboxes, PictureString
+
 class Redactor(ctk.CTk):
     def __init__(self):
         super().__init__()
         ctk.set_appearance_mode("dark")
-    
+        
         self.title('Easy2-redactor')
         self.state('zoomed')
         #self.overrideredirect(True)
@@ -26,6 +28,8 @@ class Redactor(ctk.CTk):
         self.answer_checkboxes = []
         self.answer_entries = []
         self.questions = []
+        self.current_type = 'Checkboxes'
+        self.type_var = ctk.StringVar(value='Выбор ответов')
 
         self.canvas = ctk.CTkCanvas(self, height=32)
         self.canvas.config(bg='#2b2b2b', highlightbackground='#2b2b2b')
@@ -88,6 +92,7 @@ class Redactor(ctk.CTk):
                 decrypted_dict[attribute] = unpadded_data.decode('utf-8')
     
         return decrypted_dict
+    
     def encrypt_time(self, key, data):
         key = self.generate_key(key)
         iv = key[:16]
@@ -107,7 +112,8 @@ class Redactor(ctk.CTk):
                 button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {i+2}", command=lambda i=i:self.update_content(i+2))
                 button.pack(side='left', padx=5, pady=5)
         else:
-            button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
+            button = ctk.CTkButton(master=self.tab_frame, text=f"Вопрос {self.id}", 
+                                   command=lambda:self.update_content(int(re.findall(r'\b\d+\b', button.cget('text'))[0])))
             button.pack(side='left', padx=5, pady=5)
 
     def on_scroll(self, *args):
@@ -121,38 +127,61 @@ class Redactor(ctk.CTk):
             i.destroy()
         forgotten.clear()
 
-    def create_answers(self, n=4, index=None):
+    def create_answers(self, n=4, index=None, question_type='Checkboxes'):
         self.answer_checkboxes.clear()
         self.answer_entries.clear()
-        try:
-            if self.questions[index]:
+        if question_type == 'Checkboxes':
+            try:
+                if self.questions[index]:
+                    for i in range(n):
+                        var = ctk.BooleanVar()
+                        answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                        answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.24)
+
+                        answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                        answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
+
+                        if self.questions[index]['question_type'] == 'Checkboxes':
+                            answer_entry.insert(ctk.END, str(self.questions[index]['answers'][i]))
+                        
+                        if self.questions[index]['answers'][i] in self.questions[index]['correct']:
+                            answer_checkbox.select()
+
+                        self.answer_checkboxes.append(answer_checkbox)
+                        self.answer_entries.append(answer_entry)
+                        self.number_button.configure(text=f'Кол-во ответов: {n}')
+
+            except TypeError:
                 for i in range(n):
                     var = ctk.BooleanVar()
-                    answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                    answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable = var)
                     answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.24)
 
                     answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
                     answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
-                    answer_entry.insert(ctk.END, str(self.questions[index]['answers'][i]))
-                    
-                    if self.questions[index]['answers'][i] in self.questions[index]['correct']:
-                        answer_checkbox.select()
 
                     self.answer_checkboxes.append(answer_checkbox)
                     self.answer_entries.append(answer_entry)
-                    self.number_button.configure(text=f'Кол-во ответов: {n}')
 
-        except TypeError:
-            for i in range(n):
-                var = ctk.BooleanVar()
-                answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable = var)
-                answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.24)
+        elif question_type == 'String':
+            try:
+                if self.questions[index]:
+                        answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                        answer_entry.place(rely=0.4, relx=0.28)
 
+                        if self.questions[index]['question_type'] == 'String':
+                            answer_entry.insert(ctk.END, ','.join(self.questions[index]['answers']))
+                            
+                        self.answer_entries.append(answer_entry)
+                        self.number_button.place_forget()
+                        self.label_question.configure(text='Введите допустимые ответы через запятую')
+                        
+            except TypeError:
                 answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
-                answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
-
-                self.answer_checkboxes.append(answer_checkbox)
+                answer_entry.place(rely=0.4, relx=0.28)
                 self.answer_entries.append(answer_entry)
+                self.number_button.place_forget()
+                self.label_question.configure(text='Введите допустимые ответы через запятую')
             
     def create_question_widgets(self, change_flag=False):
         self.label_question = ctk.CTkLabel(master=self.content_frame, text='Введите вопрос', font=('Arial', 20, 'bold'))
@@ -165,7 +194,8 @@ class Redactor(ctk.CTk):
         self.label_question.pack(side='top', pady=40)
 
         self.question_save_button = ctk.CTkButton(master=self.content_frame, text='Записать вопрос', command=self.record_question)
-        self.update_button = ctk.CTkButton(master=self.content_frame, text='Сохранить изменения', command=lambda:self.update_question(self.current_question))
+        self.update_button = ctk.CTkButton(master=self.content_frame, text='Сохранить изменения', 
+                                           command=lambda:self.update_question(self.current_question))
         self.delete_button = ctk.CTkButton(master=self.content_frame, text='Удалить вопрос', command=self.delete_answer)
 
         if not change_flag:
@@ -177,11 +207,31 @@ class Redactor(ctk.CTk):
         self.record_test_button = ctk.CTkButton(master=self.content_frame, text='Сохранить тест', command=self.save_test)
         self.record_test_button.place(relx=0.55, rely=0.8)
 
+        self.open_button = ctk.CTkButton(master=self.content_frame, text='Открыть тест', command=self.open_file)
+        self.open_button.place(relx=0.03, rely=0.45)
+
+        self.change_type_button = ctk.CTkOptionMenu(master=self.content_frame, values=['Выбор ответов', 'Краткий ответ', 
+                                                                                       'Краткий ответ + фото', 'Выбор + фото'], 
+                                                    variable=self.type_var, command=self.change_question_type)
+        
+        self.change_type_button.place(relx=0.03, rely=0.5)
+
         self.number_button = ctk.CTkButton(master=self.content_frame, text=f'Кол-во ответов: 4', command=self.change_answer_count)
         self.number_button.place(relx=0.03, rely=0.4)
 
-        self.open_button = ctk.CTkButton(master=self.content_frame, text='Открыть тест', command=self.open_file)
-        self.open_button.place(relx=0.03, rely=0.45)
+    def change_question_type(self, choice):
+        if choice == 'Выбор ответов':
+            self.update_content(tab_index=self.current_question, question_type='Checkboxes')
+            self.current_type = 'Checkboxes'
+        elif choice == 'Краткий ответ':
+            self.update_content(tab_index=self.current_question, question_type='String')
+            self.current_type = 'String'
+        elif choice == 'Краткий ответ + фото':
+            self.update_content(self.id, question_type='PictureString')
+            #В разработке
+        elif choice == 'Выбор + фото':
+            self.update_content(self.id, question_type='PictureCheckboxes')
+            #В разработке
 
     def change_answer_count(self):
         self.dialog = ctk.CTkInputDialog(text='Введите кол-во ответов для текущего вопроса (не больше 12)', title='Выберите кол-во ответов')
@@ -200,36 +250,55 @@ class Redactor(ctk.CTk):
         self.create_answers(n)
         self.number_button.configure(text=f'Кол-во ответов: {n}')
 
-    def update_content(self, tab_index):
+    def update_content(self, tab_index, question_type=None):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
         self.current_question = tab_index
-
         try:
+            if not question_type:
+                question_type = self.questions[tab_index-1]['question_type']
+                if question_type == 'Checkboxes':
+                    self.current_type = 'Checkboxes'
+                    self.type_var.set('Выбор ответов')
+                elif question_type == 'String':
+                    self.current_type = 'String'
+                    self.type_var.set('Краткий ответ')
+
             self.questions[tab_index-1]['answers']
             self.create_question_widgets(True)
-            self.create_answers(len(self.questions[tab_index-1]['answers']), tab_index-1)
+            self.create_answers(len(self.questions[tab_index-1]['answers']), tab_index-1, question_type)
             self.textbox_question.insert('0.0', str(self.questions[tab_index-1]['question']))
 
         except IndexError:
+            if not question_type:
+                question_type = self.current_type
+                if question_type == 'Checkboxes':
+                        self.type_var.set('Выбор ответов')
+                elif question_type == 'String':
+                    self.type_var.set('Краткий ответ')
             self.create_question_widgets(False)
-            self.create_answers()
+            self.create_answers(question_type=question_type)
 
     def record_question(self):
+        question_type = self.current_type
         question_text = self.textbox_question.get('0.0', 'end')
         answers = []
         correct_answers = []
         
-        for i, entry in enumerate(self.answer_entries):
-            answers.append(entry.get())
-            if self.answer_checkboxes[i].get():
-                correct_answers.append(entry.get())
-        
+        if question_type == 'Checkboxes':
+            for i, entry in enumerate(self.answer_entries):
+                answers.append(entry.get())
+                if self.answer_checkboxes[i].get():
+                    correct_answers.append(entry.get())
+        elif question_type == 'String':
+            answers = self.answer_entries[0].get().split(', ')
+
         self.questions.append({
             "question": question_text,
             "answers": answers,
             "correct": correct_answers,
-            "id": self.id
+            "id": self.id,
+            "question_type": question_type
         })
         self.id += 1
         self.add_tabs()
@@ -241,19 +310,23 @@ class Redactor(ctk.CTk):
 
     def update_question(self, index):
         question_text = self.textbox_question.get('0.0', 'end')
+        current_type = self.current_type
         answers = []
         correct_answers = []
-        
-        for i, entry in enumerate(self.answer_entries):
-            answers.append(entry.get())
-            if self.answer_checkboxes[i].get():
-                correct_answers.append(entry.get())
+        if current_type == 'Checkboxes':
+            for i, entry in enumerate(self.answer_entries):
+                answers.append(entry.get())
+                if self.answer_checkboxes[i].get():
+                    correct_answers.append(entry.get())
+        elif current_type == 'String':
+            answers = self.answer_entries[0].get().split(', ')
         
         self.questions[index-1]= {
             "question": question_text,
             "answers": answers,
             "correct": correct_answers,
-            "id": index
+            "id": index,
+            "question_type": current_type
         }
         self.label_success_edit = ctk.CTkLabel(master=self.content_frame, text='Изменения сохранены', font=('Arial', 12, 'bold'), text_color='green')
         self.label_success_edit.place(relx=0.3, rely=0.85)
@@ -330,6 +403,7 @@ class Redactor(ctk.CTk):
                     question['answers']
                     question['correct']
                     question['id']
+                    question['question_type']
 
                 self.add_tabs(len(data))
                 self.questions = data
