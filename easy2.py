@@ -24,7 +24,6 @@ def get_scale_factor():
         dpi_x = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
         scale_factor = dpi_x / 96
         ctypes.windll.user32.ReleaseDC(0, hdc)
-        print(scale_factor)
         return scale_factor
 
     except Exception as e:
@@ -208,7 +207,8 @@ class TestPlayer(ctk.CTk):
                     question['answers']
                     question['correct']
                     question['id']
-                
+                    question['question_type']
+
                 self.questions = data
                 key = self.questions[-1]['password']
                 password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
@@ -252,17 +252,23 @@ class TestPlayer(ctk.CTk):
         self.textbox_question.pack(side='top', padx=20, pady=10)
         self.textbox_question.insert('0.0', str(self.questions[id-1]['question']))
         self.textbox_question.configure(state=ctk.DISABLED)
+        
+        if self.questions[id-1]['question_type'] == 'Checkboxes':
+            for i in range(len(self.questions[id-1]['answers'])):
+                    var = ctk.BooleanVar()
+                    answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                    answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.27)
+                    self.checkboxes.append(answer_checkbox)
 
-        for i in range(len(self.questions[id-1]['answers'])):
-                var = ctk.BooleanVar()
-                answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
-                answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.27)
-                self.checkboxes.append(answer_checkbox)
+                    answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
+                    answer_entry.place(rely=0.4 + i * 0.03, relx=0.29)
+                    answer_entry.insert(ctk.END, str(self.questions[id-1]['answers'][i]))
+                    answer_entry.configure(state=ctk.DISABLED)
+                    self.entries.append(answer_entry)
 
+        elif self.questions[id-1]['question_type'] == 'String':
                 answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
-                answer_entry.place(rely=0.4 + i * 0.03, relx=0.29)
-                answer_entry.insert(ctk.END, str(self.questions[id-1]['answers'][i]))
-                answer_entry.configure(state=ctk.DISABLED)
+                answer_entry.place(rely=0.4, relx=0.29)
                 self.entries.append(answer_entry)
 
         self.button_answer = ctk.CTkButton(master=self.content_frame, text='Ответить', command=self.answer)
@@ -282,20 +288,30 @@ class TestPlayer(ctk.CTk):
     def answer(self):
             answers = []
             correct_answers = []
+            current_question = self.questions[self.current_question - 1]
             approved = True
-            for i, entry in enumerate(self.entries):
-                if self.checkboxes[i].get():
-                    if entry.get() not in self.questions[self.current_question - 1]['correct']:
-                        approved = False
-                    else:
-                        self.correct_counter += 1
-            if self.correct_counter != len(self.questions[self.current_question -1 ]['correct']):
-                approved = False
+            if current_question['question_type'] == 'Checkboxes':
+                for i, entry in enumerate(self.entries):
+                    if self.checkboxes[i].get():
+                        if entry.get() not in current_question['correct']:
+                            approved = False
+                        else:
+                            self.correct_counter += 1
+                if self.correct_counter != len(current_question['correct']):
+                    approved = False
 
-            self.correct_counter = 0
-            self.questions_counter += 1
-            if approved:
-                self.score += 1
+                self.correct_counter = 0
+                self.questions_counter += 1
+                if approved:
+                    self.score += 1
+            elif current_question['question_type'] == 'String':  
+                if self.entries[0].get() not in current_question['answers']:
+                    approved = False
+                
+                if approved:
+                    self.score += 1
+
+                self.questions_counter += 1
 
             if self.questions_counter == len(self.questions):
                 for widget in self.tab_frame.winfo_children():
@@ -313,11 +329,13 @@ class TestPlayer(ctk.CTk):
 
                 self.passed_time = ctk.CTkLabel(master=self.content_frame, text=f'{datetime.datetime.now().strftime('%H:%M | %d.%m.%Y')}', font=('Arial', 52, 'bold'))
                 self.passed_time.pack(side='top', pady=100)
+
             else:
                 self.tab_buttons[self.current_question - 1].configure(state=ctk.DISABLED)
                 self.answered_label = ctk.CTkLabel(master=self.content_frame, text='Ответ записан', font=('Arial', 32, 'bold'), text_color='green')
                 self.answered_label.place(relx=0.7, rely=0.85)
                 self.button_answer.configure(state=ctk.DISABLED)
+
                 for checkbox in self.checkboxes:
                     checkbox.configure(state=ctk.DISABLED)
 
