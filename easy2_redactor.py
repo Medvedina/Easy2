@@ -9,8 +9,12 @@ from cryptography.hazmat.backends import default_backend
 import base64
 import hashlib
 import ast
-
+import time
+import os
+import threading
+import sys
 #Типы: Checkboxes, String, PictureCheckboxes, PictureString
+stop_thread = False
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -53,6 +57,8 @@ class Redactor(ctk.CTk):
 
         self.create_question_widgets()
         self.create_answers()
+        
+        self.reserve_copy_loading()
 
     def generate_key(self, key):
         key_bytes = key.encode('utf-8')
@@ -308,6 +314,8 @@ class Redactor(ctk.CTk):
         self.label_success_record = ctk.CTkLabel(master=self.content_frame, text='Вопрос записан в память', font=('Arial', 12, 'bold'), text_color='green')
         self.label_success_record.place(relx=0.3, rely=0.85)
 
+        self.reserve_copy()
+
     def update_question(self, index):
         question_text = self.textbox_question.get('0.0', 'end')
         current_type = self.current_type
@@ -330,6 +338,8 @@ class Redactor(ctk.CTk):
         }
         self.label_success_edit = ctk.CTkLabel(master=self.content_frame, text='Изменения сохранены', font=('Arial', 12, 'bold'), text_color='green')
         self.label_success_edit.place(relx=0.3, rely=0.85)
+
+        self.reserve_copy()
 
     def save_test(self):
         try:
@@ -383,45 +393,65 @@ class Redactor(ctk.CTk):
         except RuntimeError:
             pass
     
-    def open_file(self):
+    def open_file(self, reserve_flag=False, file=None):
         try:
-            file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-            if not file:
-                raise RuntimeError
-            with open(file, 'r', encoding='utf-8') as f:
-                self.id = 1
-                self.current_question = 1
-                self.answer_checkboxes = []
-                self.answer_entries = []
-                for widget in self.tab_frame.winfo_children():
-                    widget.destroy()
-                self.add_tabs()
-                data = json.load(f)
+            if not reserve_flag:
+                file = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+                if not file:
+                    raise RuntimeError
+                with open(file, 'r', encoding='utf-8') as f:
+                    self.id = 1
+                    self.current_question = 1
+                    self.answer_checkboxes = []
+                    self.answer_entries = []
+                    for widget in self.tab_frame.winfo_children():
+                        widget.destroy()
+                    self.add_tabs()
+                    data = json.load(f)
 
-                for question in data:
-                    question['question']
-                    question['answers']
-                    question['correct']
-                    question['id']
-                    question['question_type']
+                    for question in data:
+                        question['question']
+                        question['answers']
+                        question['correct']
+                        question['id']
+                        question['question_type']
+            else:
+                with open(file, 'r', encoding='utf-8') as f:
+                    self.id = 1
+                    self.current_question = 1
+                    self.answer_checkboxes = []
+                    self.answer_entries = []
+                    for widget in self.tab_frame.winfo_children():
+                        widget.destroy()
+                    self.add_tabs()
+                    data = json.load(f)
+
+                    for question in data:
+                        question['question']
+                        question['answers']
+                        question['correct']
+                        question['id']
+                        question['question_type']
 
                 self.add_tabs(len(data))
                 self.questions = data
-                key = self.questions[-1]['password']
-                password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
+                if not reserve_flag:
+                    key = self.questions[-1]['password']
+                    password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
 
-                if check_password_hash(str(key), str(password)):
-                    counter = 0
-                    for question in self.questions:
-                            update = self.decryption_func(str(password), question)
-                            self.questions[counter].update(update)
-                            counter += 1
-                else:
-                    messagebox.showerror(title='Ошибка авторизации', message='Неверный пароль')
-                    raise RuntimeError
+                    if check_password_hash(str(key), str(password)):
+                        counter = 0
+                        for question in self.questions:
+                                update = self.decryption_func(str(password), question)
+                                self.questions[counter].update(update)
+                                counter += 1
+                    else:
+                        messagebox.showerror(title='Ошибка авторизации', message='Неверный пароль')
+                        raise RuntimeError
             self.id = len(data) + 1
             self.add_tabs()
             self.update_content(1)
+
             messagebox.showinfo(title='Загрузка', message=f'Успешно загружен файл {file}')
         except KeyError as e:
             messagebox.showerror(title='Файл повреждён', message=f'Не найден ключ: {e}')
@@ -446,7 +476,34 @@ class Redactor(ctk.CTk):
         self.id = len(self.questions) + 1
         self.add_tabs(self.id)
         self.update_content(self.id)
+    
+    def reserve_copy_loading(self):
+        try:
+            directory = os.path.dirname(os.path.abspath(__file__))
+            save_path = os.path.join(directory, 'reserve_copy.json')
+
+            with open(save_path, 'r', encoding='utf-8') as f:
+                if json.load(f) != []:
+                    if messagebox.askyesno(title='Восстановление', message='Обнаружена резервная копия вашего теста. Восстановить?'):
+                        self.open_file(True, save_path)        
+                    else:
+                        open(save_path, 'w', encoding='utf-8')
+                        
+        except Exception:
+            pass
+
+    def reserve_copy(self):
+        directory = os.path.dirname(os.path.abspath(__file__))
+        save_path = os.path.join(directory, 'reserve_copy.json')
+
+        with open(save_path, 'w', encoding='utf-8') as f:
+                json.dump(app.questions, f, ensure_ascii=False, indent=4)
 
 if __name__ == '__main__':
     app = Redactor()
+    def on_closing():
+        if messagebox.askokcancel("Выход", "Вы действительно хотите выйти?"):
+            app.destroy()
+
+    app.protocol("WM_DELETE_WINDOW", on_closing)
     app.mainloop()
