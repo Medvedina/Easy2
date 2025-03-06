@@ -17,6 +17,7 @@ import ast
 import datetime
 import os
 import ctypes
+from io import BytesIO
 
 def get_scale_factor():
     try:
@@ -40,7 +41,7 @@ class TestPlayer(ctk.CTk):
         self.overrideredirect(True)
         self.scale_factor = get_scale_factor()
         ctk.set_window_scaling(1 / self.scale_factor)
-        ctk.set_window_scaling(1 / self.scale_factor)
+        ctk.set_widget_scaling(1 / self.scale_factor)
         self.geometry(f"{self.width}x{self.height}")
         self.resizable(width=False, height=False)
 
@@ -206,6 +207,7 @@ class TestPlayer(ctk.CTk):
                     question['question']
                     question['answers']
                     question['correct']
+                    question['image']
                     question['id']
                     question['question_type']
 
@@ -248,28 +250,43 @@ class TestPlayer(ctk.CTk):
             self.tab_buttons.append(button)
 
     def create_widgets(self, id):
-        self.textbox_question = ctk.CTkTextbox(master=self.content_frame, width=900)
-        self.textbox_question.pack(side='top', padx=20, pady=10)
+        self.textbox_question = ctk.CTkTextbox(master=self.content_frame, width=1100)
+        self.textbox_question.place(relx=0.2, rely=0.065)
         self.textbox_question.insert('0.0', str(self.questions[id-1]['question']))
         self.textbox_question.configure(state=ctk.DISABLED)
-        
+        self.image_label = ctk.CTkLabel(master=self.content_frame, text='')
+
         if self.questions[id-1]['question_type'] == 'Checkboxes':
             for i in range(len(self.questions[id-1]['answers'])):
-                    var = ctk.BooleanVar()
-                    answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
-                    answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.27)
-                    self.checkboxes.append(answer_checkbox)
+                var = ctk.BooleanVar()
+                answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.27)
+                self.checkboxes.append(answer_checkbox)
 
-                    answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
-                    answer_entry.place(rely=0.4 + i * 0.03, relx=0.29)
-                    answer_entry.insert(ctk.END, str(self.questions[id-1]['answers'][i]))
-                    answer_entry.configure(state=ctk.DISABLED)
-                    self.entries.append(answer_entry)
+                answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
+                answer_entry.place(rely=0.4 + i * 0.03, relx=0.29)
+                answer_entry.insert(ctk.END, str(self.questions[id-1]['answers'][i]))
+                answer_entry.configure(state=ctk.DISABLED)
+                self.entries.append(answer_entry)
 
         elif self.questions[id-1]['question_type'] == 'String':
-                answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
-                answer_entry.place(rely=0.4, relx=0.29)
-                self.entries.append(answer_entry)
+            answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
+            answer_entry.place(rely=0.4, relx=0.29)
+            self.entries.append(answer_entry)
+        
+        elif self.questions[id-1]['question_type'] == 'PictureString':
+            answer_entry = ctk.CTkEntry(master=self.content_frame, width=850)
+            answer_entry.place(rely=0.5, relx=0.29)
+
+            self.entries.append(answer_entry)
+            self.textbox_question.configure(width=450)
+
+            image_data = base64.b64decode(self.questions[id-1]['image'])
+            image = Image.open(BytesIO(image_data))
+            image_for_widget = ctk.CTkImage(dark_image=image, size=(600, 400))
+            self.image_label.place(relx=0.45, rely=0.065)
+            self.image_label.configure(image=image_for_widget)
+
 
         self.button_answer = ctk.CTkButton(master=self.content_frame, text='Ответить', command=self.answer)
         self.button_answer.place(relx=0.7, rely=0.8)
@@ -304,7 +321,7 @@ class TestPlayer(ctk.CTk):
                 self.questions_counter += 1
                 if approved:
                     self.score += 1
-            elif current_question['question_type'] == 'String':  
+            elif current_question['question_type'] == 'String' or current_question['question_type'] == 'PictureString':  
                 if self.entries[0].get() not in current_question['answers']:
                     approved = False
                 

@@ -13,6 +13,9 @@ import time
 import os
 import threading
 import sys
+from PIL import Image
+from io import BytesIO
+
 #Типы: Checkboxes, String, PictureCheckboxes, PictureString
 stop_thread = False
 
@@ -32,6 +35,7 @@ class Redactor(ctk.CTk):
         self.answer_checkboxes = []
         self.answer_entries = []
         self.questions = []
+        self.image_base64 = 0
         self.current_type = 'Checkboxes'
         self.type_var = ctk.StringVar(value='Выбор ответов')
 
@@ -96,7 +100,6 @@ class Redactor(ctk.CTk):
                 decrypted_dict[attribute] = ast.literal_eval(unpadded_data.decode('utf-8'))
             else:
                 decrypted_dict[attribute] = unpadded_data.decode('utf-8')
-    
         return decrypted_dict
     
     def encrypt_time(self, key, data):
@@ -189,6 +192,49 @@ class Redactor(ctk.CTk):
                 self.number_button.place_forget()
                 self.label_question.configure(text='Введите допустимые ответы через запятую')
             
+        elif question_type == 'PictureString':
+            try:
+                if self.questions[index]:
+                        answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                        answer_entry.place(rely=0.4, relx=0.28)
+
+                        if self.questions[index]['question_type'] == 'PictureString':
+                            answer_entry.insert(ctk.END, ','.join(self.questions[index]['answers']))
+
+                        self.textbox_question.pack_configure(anchor='w')
+                        self.textbox_question.configure(width=450)
+
+                        self.answer_entries.append(answer_entry)
+                        self.number_button.place_forget()
+
+                        self.picture_button.place(relx=0.03, rely=0.4)
+                        self.picture_show_label.place(relx=0.6, rely=0.15)
+                        self.picture_label.place(relx=0.03, rely=0.9)
+
+                        self.label_question.configure(text='Введите допустимые ответы через запятую')
+                        
+                        if self.questions[index]['image']:
+                            image_data = base64.b64decode(self.questions[index]['image'])
+                            image = Image.open(BytesIO(image_data))
+                            image_for_widget = ctk.CTkImage(dark_image=image, size=(400, 200))
+
+                            self.picture_show_label.place_configure(relx=0.5, rely=0.065)
+                            self.picture_show_label.configure(text='', image=image_for_widget)
+                            self.picture_label.configure(text='Изображение загружено')            
+            except TypeError:
+                answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                answer_entry.place(rely=0.4, relx=0.28)
+                self.answer_entries.append(answer_entry)
+                self.number_button.place_forget()
+
+                self.textbox_question.pack_configure(anchor='w')
+                self.textbox_question.configure(width=450)
+
+                self.picture_show_label.place(relx=0.6, rely=0.15)
+                self.picture_button.place(relx=0.03, rely=0.4)
+                self.picture_label.place(relx=0.03, rely=0.9)
+                self.label_question.configure(text='Введите допустимые ответы через запятую')
+
     def create_question_widgets(self, change_flag=False):
         self.label_question = ctk.CTkLabel(master=self.content_frame, text='Введите вопрос', font=('Arial', 20, 'bold'))
         self.label_question.pack(side='top', pady=10)
@@ -217,12 +263,16 @@ class Redactor(ctk.CTk):
         self.open_button.place(relx=0.03, rely=0.45)
 
         self.change_type_button = ctk.CTkOptionMenu(master=self.content_frame, values=['Выбор ответов', 'Краткий ответ', 
-                                                                                       'Краткий ответ + фото', 'Выбор + фото'], 
+                                                                                       'Выбор + фото', 'Краткий ответ + фото'], 
                                                     variable=self.type_var, command=self.change_question_type)
         
         self.change_type_button.place(relx=0.03, rely=0.5)
 
-        self.number_button = ctk.CTkButton(master=self.content_frame, text=f'Кол-во ответов: 4', command=self.change_answer_count)
+        self.picture_button = ctk.CTkButton(master=self.content_frame, text='Изображение', command=self.add_image)
+        self.picture_show_label = ctk.CTkLabel(master=self.content_frame, text='Выберите изображение', font=('Arial', 14, 'bold'))
+        self.picture_label = ctk.CTkLabel(master=self.content_frame, text='Изображение не выбрано', font=('Arial', 14, 'bold'))
+
+        self.number_button = ctk.CTkButton(master=self.content_frame, text='Кол-во ответов: 4', command=self.change_answer_count)
         self.number_button.place(relx=0.03, rely=0.4)
 
     def change_question_type(self, choice):
@@ -234,7 +284,7 @@ class Redactor(ctk.CTk):
             self.current_type = 'String'
         elif choice == 'Краткий ответ + фото':
             self.update_content(self.id, question_type='PictureString')
-            #В разработке
+            self.current_type = 'PictureString'
         elif choice == 'Выбор + фото':
             self.update_content(self.id, question_type='PictureCheckboxes')
             #В разработке
@@ -260,15 +310,22 @@ class Redactor(ctk.CTk):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
         self.current_question = tab_index
+        self.image_base64 = 0
         try:
             if not question_type:
                 question_type = self.questions[tab_index-1]['question_type']
                 if question_type == 'Checkboxes':
                     self.current_type = 'Checkboxes'
                     self.type_var.set('Выбор ответов')
+                    
                 elif question_type == 'String':
                     self.current_type = 'String'
                     self.type_var.set('Краткий ответ')
+
+                elif question_type == 'PictureString':
+                    self.current_type == 'PictureString'
+                    self.image_base64 = self.questions[tab_index-1]['image']
+                    self.type_var.set('Краткий ответ + фото')
 
             self.questions[tab_index-1]['answers']
             self.create_question_widgets(True)
@@ -279,11 +336,44 @@ class Redactor(ctk.CTk):
             if not question_type:
                 question_type = self.current_type
                 if question_type == 'Checkboxes':
-                        self.type_var.set('Выбор ответов')
+                    self.type_var.set('Выбор ответов')
                 elif question_type == 'String':
                     self.type_var.set('Краткий ответ')
+                elif question_type == 'PictureString':
+                    self.type_var.set('Краткий ответ + фото')
+
             self.create_question_widgets(False)
             self.create_answers(question_type=question_type)
+
+    def add_white_background(self, image):
+        original = image
+        white_background = Image.new("RGBA", original.size, (255, 255, 255, 255))
+        combined_image = Image.alpha_composite(white_background, original).convert("RGB")
+        return combined_image
+
+    def add_image(self):
+        try:
+            path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png")])
+            file_size = os.path.getsize(path)
+            if file_size < 3145728:
+                image = self.add_white_background(Image.open(path))
+                temp_path = os.path.dirname(os.path.abspath(__file__)) + 'temp.jpg'
+                image.save(temp_path, "JPEG")
+                self.picture_show_label.place_configure(relx=0.5, rely=0.065)
+                image_for_widget = ctk.CTkImage(dark_image=image, size=(400, 200))
+                self.picture_label.configure(text=f'Изображение: {path}')
+                self.picture_show_label.configure(text='', image=image_for_widget)
+
+                with open(temp_path, "rb") as image_file:
+                    self.image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+
+                os.remove(temp_path)
+            else:
+                messagebox.showerror(title='Ошибка загрузки', message='Файл должен весить не более 3 Мбайт')
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            messagebox.showerror(title='Ошибка', message=f'Изображение не добавлено, ошибка: {e}')
 
     def record_question(self):
         question_type = self.current_type
@@ -298,12 +388,15 @@ class Redactor(ctk.CTk):
                     correct_answers.append(entry.get())
         elif question_type == 'String':
             answers = self.answer_entries[0].get().split(', ')
+        elif question_type == 'PictureString':
+            answers = self.answer_entries[0].get().split(', ')
 
         self.questions.append({
             "question": question_text,
             "answers": answers,
             "correct": correct_answers,
             "id": self.id,
+            "image": self.image_base64,
             "question_type": question_type
         })
         self.id += 1
@@ -321,6 +414,8 @@ class Redactor(ctk.CTk):
         current_type = self.current_type
         answers = []
         correct_answers = []
+        image_base64 = self.image_base64
+
         if current_type == 'Checkboxes':
             for i, entry in enumerate(self.answer_entries):
                 answers.append(entry.get())
@@ -328,12 +423,16 @@ class Redactor(ctk.CTk):
                     correct_answers.append(entry.get())
         elif current_type == 'String':
             answers = self.answer_entries[0].get().split(', ')
-        
+
+        elif current_type == 'PictureString':
+            answers = self.answer_entries[0].get().split(', ')
+
         self.questions[index-1]= {
             "question": question_text,
             "answers": answers,
             "correct": correct_answers,
             "id": index,
+            "image": image_base64,
             "question_type": current_type
         }
         self.label_success_edit = ctk.CTkLabel(master=self.content_frame, text='Изменения сохранены', font=('Arial', 12, 'bold'), text_color='green')
@@ -389,6 +488,12 @@ class Redactor(ctk.CTk):
 
             with open(save_path, 'w', encoding='utf-8') as f:
                 json.dump(self.questions, f, ensure_ascii=False, indent=4)
+            
+            try:
+                os.remove(os.path.dirname(os.path.abspath(__file__)) + 'reserve_copy.json')
+            except Exception:
+                pass
+
             messagebox.showinfo(title='Сохранение', message=f'Файл сохранён как {save_path}')
         except RuntimeError:
             pass
@@ -404,6 +509,7 @@ class Redactor(ctk.CTk):
                     self.current_question = 1
                     self.answer_checkboxes = []
                     self.answer_entries = []
+                    self.image_base64 = None
                     for widget in self.tab_frame.winfo_children():
                         widget.destroy()
                     self.add_tabs()
@@ -415,6 +521,23 @@ class Redactor(ctk.CTk):
                         question['correct']
                         question['id']
                         question['question_type']
+
+                    self.add_tabs(len(data))
+                    self.questions = data
+
+                    key = self.questions[-1]['password']
+                    password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
+
+                    if check_password_hash(str(key), str(password)):
+                        counter = 0
+                        for question in self.questions:
+                                update = self.decryption_func(str(password), question)
+                                self.questions[counter].update(update)
+                                counter += 1
+                    else:
+                        messagebox.showerror(title='Ошибка авторизации', message='Неверный пароль')
+                        raise RuntimeError
+                
             else:
                 with open(file, 'r', encoding='utf-8') as f:
                     self.id = 1
@@ -431,23 +554,12 @@ class Redactor(ctk.CTk):
                         question['answers']
                         question['correct']
                         question['id']
+                        question['image']
                         question['question_type']
 
-                self.add_tabs(len(data))
-                self.questions = data
-                if not reserve_flag:
-                    key = self.questions[-1]['password']
-                    password = ctk.CTkInputDialog(title='Авторизация', text='Введите пароль').get_input()
+                    self.add_tabs(len(data))
+                    self.questions = data
 
-                    if check_password_hash(str(key), str(password)):
-                        counter = 0
-                        for question in self.questions:
-                                update = self.decryption_func(str(password), question)
-                                self.questions[counter].update(update)
-                                counter += 1
-                    else:
-                        messagebox.showerror(title='Ошибка авторизации', message='Неверный пароль')
-                        raise RuntimeError
             self.id = len(data) + 1
             self.add_tabs()
             self.update_content(1)
@@ -476,6 +588,7 @@ class Redactor(ctk.CTk):
         self.id = len(self.questions) + 1
         self.add_tabs(self.id)
         self.update_content(self.id)
+        self.reserve_copy()
     
     def reserve_copy_loading(self):
         try:
@@ -488,7 +601,7 @@ class Redactor(ctk.CTk):
                         self.open_file(True, save_path)        
                     else:
                         open(save_path, 'w', encoding='utf-8')
-                        
+
         except Exception:
             pass
 
