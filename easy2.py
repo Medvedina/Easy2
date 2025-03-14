@@ -123,7 +123,7 @@ class TestPlayer(ctk.CTk):
         coordinates_pool_y.append(int(self.height*0.5))
 
         while(not self.passed_flag):
-            time.sleep(0.1)
+            time.sleep(0.4)
             screenshot = pyautogui.screenshot()
             for check in range(2):
                 if screenshot.getpixel((coordinates_pool_x[check], coordinates_pool_y[check])) != (43,43,43):
@@ -181,8 +181,8 @@ class TestPlayer(ctk.CTk):
     
     def decrypt_time(self, key_str, encrypted_data):
         key = self.generate_key(key_str)
-        iv = key[:16]  # Initialization vector (IV)
-        key = key[16:]  # Use next 32 bytes for AES-256
+        iv = key[:16]
+        key = key[16:]
         aes_cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend()).decryptor()
 
         encrypted_bytes = base64.b64decode(encrypted_data.encode('utf-8'))
@@ -287,10 +287,30 @@ class TestPlayer(ctk.CTk):
             self.image_label.place(relx=0.45, rely=0.065)
             self.image_label.configure(image=image_for_widget)
 
+        elif self.questions[id-1]['question_type'] == 'PictureCheckboxes':
+            for i in range(len(self.questions[id-1]['answers'])):
+                var = ctk.BooleanVar()
+                answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.27)
+                self.checkboxes.append(answer_checkbox)
+
+                answer_entry = ctk.CTkEntry(master=self.content_frame, width=self.width * 0.4427)
+                answer_entry.place(rely=0.4 + i * 0.03, relx=0.29)
+                answer_entry.insert(ctk.END, str(self.questions[id-1]['answers'][i]))
+                answer_entry.configure(state=ctk.DISABLED)
+                self.entries.append(answer_entry)
+
+            self.textbox_question.configure(width=self.width * 0.234375)
+            image_data = base64.b64decode(self.questions[id-1]['image'])
+            image = Image.open(BytesIO(image_data))
+            image_for_widget = ctk.CTkImage(dark_image=image, size=(self.width * 0.3125, self.height * 0.3))
+            self.image_label.place(relx=0.45, rely=0.065)
+            self.image_label.configure(image=image_for_widget)
+
 
         self.button_answer = ctk.CTkButton(master=self.content_frame, text='Ответить', command=self.answer)
         self.button_answer.place(relx=0.7, rely=0.8)
-        
+
         self.bind('<KeyPress>', self.bind_function)
 
     def bind_function(self, event):
@@ -308,11 +328,9 @@ class TestPlayer(ctk.CTk):
         self.create_widgets(self.questions[tab_index-1]['id'])
 
     def answer(self):
-            answers = []
-            correct_answers = []
             current_question = self.questions[self.current_question - 1]
             approved = True
-            if current_question['question_type'] == 'Checkboxes':
+            if current_question['question_type'] == 'Checkboxes' or current_question['question_type'] == 'PictureCheckboxes':
                 for i, entry in enumerate(self.entries):
                     if self.checkboxes[i].get():
                         if entry.get() not in current_question['correct']:

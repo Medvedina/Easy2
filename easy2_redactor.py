@@ -17,7 +17,6 @@ from PIL import Image
 from io import BytesIO
 
 #Типы: Checkboxes, String, PictureCheckboxes, PictureString
-stop_thread = False
 
 class Redactor(ctk.CTk):
     def __init__(self):
@@ -234,6 +233,66 @@ class Redactor(ctk.CTk):
                 self.picture_button.place(relx=0.03, rely=0.4)
                 self.picture_label.place(relx=0.03, rely=0.9)
                 self.label_question.configure(text='Введите допустимые ответы через запятую')
+                
+        elif question_type == 'PictureCheckboxes':
+            try:
+                if self.questions[index]:
+                    for i in range(n):
+                        var = ctk.BooleanVar()
+                        answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable=var)
+                        answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.24)
+
+                        answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                        answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
+
+                        if self.questions[index]['question_type'] == 'PictureCheckboxes':
+                            answer_entry.insert(ctk.END, str(self.questions[index]['answers'][i]))
+                        
+                        if self.questions[index]['answers'][i] in self.questions[index]['correct']:
+                            answer_checkbox.select()
+
+                        self.answer_checkboxes.append(answer_checkbox)
+                        self.answer_entries.append(answer_entry)
+                        self.number_button.configure(text=f'Кол-во ответов: {n}')
+
+                        self.textbox_question.pack_configure(anchor='w')
+                        self.textbox_question.configure(width=450)
+
+                        self.answer_entries.append(answer_entry)
+
+                        self.picture_button.place(relx=0.03, rely=0.35)
+                        self.picture_show_label.place(relx=0.6, rely=0.15)
+                        self.picture_label.place(relx=0.03, rely=0.9)
+
+                        self.label_question.configure(text='Введите допустимые ответы через запятую')
+                        
+                        if self.questions[index]['image']:
+                            image_data = base64.b64decode(self.questions[index]['image'])
+                            image = Image.open(BytesIO(image_data))
+                            image_for_widget = ctk.CTkImage(dark_image=image, size=(400, 200))
+
+                            self.picture_show_label.place_configure(relx=0.5, rely=0.065)
+                            self.picture_show_label.configure(text='', image=image_for_widget)
+                            self.picture_label.configure(text='Изображение загружено')            
+            except TypeError:
+                for i in range(n):
+                    var = ctk.BooleanVar()
+                    answer_checkbox = ctk.CTkCheckBox(master=self.content_frame, text='', variable = var)
+                    answer_checkbox.place(rely=0.4 + i * 0.03, relx=0.24)
+
+                    answer_entry = ctk.CTkEntry(master=self.content_frame, width=450)
+                    answer_entry.place(rely=0.4 + i * 0.03, relx=0.28)
+
+                    self.answer_checkboxes.append(answer_checkbox)
+                    self.answer_entries.append(answer_entry)
+
+                self.textbox_question.pack_configure(anchor='w')
+                self.textbox_question.configure(width=450)
+
+                self.picture_show_label.place(relx=0.6, rely=0.15)
+                self.picture_button.place(relx=0.03, rely=0.35)
+                self.picture_label.place(relx=0.03, rely=0.9)
+                self.label_question.configure(text='Введите допустимые ответы через запятую')
 
     def create_question_widgets(self, change_flag=False):
         self.label_question = ctk.CTkLabel(master=self.content_frame, text='Введите вопрос', font=('Arial', 20, 'bold'))
@@ -287,7 +346,7 @@ class Redactor(ctk.CTk):
             self.current_type = 'PictureString'
         elif choice == 'Выбор + фото':
             self.update_content(self.id, question_type='PictureCheckboxes')
-            #В разработке
+            self.current_type = 'PictureCheckboxes'
 
     def change_answer_count(self):
         self.dialog = ctk.CTkInputDialog(text='Введите кол-во ответов для текущего вопроса (не больше 12)', title='Выберите кол-во ответов')
@@ -327,6 +386,11 @@ class Redactor(ctk.CTk):
                     self.image_base64 = self.questions[tab_index-1]['image']
                     self.type_var.set('Краткий ответ + фото')
 
+                elif question_type == 'PictureCheckboxes':
+                    self.current_type == 'PictureCheckboxes'
+                    self.image_base64 = self.questions[tab_index-1]['image']
+                    self.type_var.set('Выбор + фото')
+
             self.questions[tab_index-1]['answers']
             self.create_question_widgets(True)
             self.create_answers(len(self.questions[tab_index-1]['answers']), tab_index-1, question_type)
@@ -341,6 +405,8 @@ class Redactor(ctk.CTk):
                     self.type_var.set('Краткий ответ')
                 elif question_type == 'PictureString':
                     self.type_var.set('Краткий ответ + фото')
+                elif question_type == 'PictureCheckboxes':
+                    self.type_var.set('Выбор + фото')
 
             self.create_question_widgets(False)
             self.create_answers(question_type=question_type)
@@ -381,14 +447,12 @@ class Redactor(ctk.CTk):
         answers = []
         correct_answers = []
         
-        if question_type == 'Checkboxes':
+        if question_type == 'Checkboxes' or question_type == 'PictureCheckboxes':
             for i, entry in enumerate(self.answer_entries):
                 answers.append(entry.get())
                 if self.answer_checkboxes[i].get():
                     correct_answers.append(entry.get())
-        elif question_type == 'String':
-            answers = self.answer_entries[0].get().split(', ')
-        elif question_type == 'PictureString':
+        elif question_type == 'String' or question_type == 'PictureString':
             answers = self.answer_entries[0].get().split(', ')
 
         self.questions.append({
@@ -416,15 +480,12 @@ class Redactor(ctk.CTk):
         correct_answers = []
         image_base64 = self.image_base64
 
-        if current_type == 'Checkboxes':
+        if current_type == 'Checkboxes' or current_type == 'PictureCheckboxes':
             for i, entry in enumerate(self.answer_entries):
                 answers.append(entry.get())
                 if self.answer_checkboxes[i].get():
                     correct_answers.append(entry.get())
-        elif current_type == 'String':
-            answers = self.answer_entries[0].get().split(', ')
-
-        elif current_type == 'PictureString':
+        elif current_type == 'String' or current_type == 'PictureString':
             answers = self.answer_entries[0].get().split(', ')
 
         self.questions[index-1]= {
